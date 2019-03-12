@@ -13,13 +13,13 @@ class BellmanTF():
             V {np.variable} -- matrix of shape [n,1] where n is the number of states
             P {np.variable} -- matrix of [n,n] where each row is s and each column is s'. static transition probabilities
             R {np.variable} -- same as the shape of V. finite reward set
-            gamma{np.constant}
+            gamma{ same type as P}
         
         Returns:
             
         """
 
-        dnom = tf.subtract(1, tf.multiply(P, gamma) )
+        dnom = tf.subtract(tf.ones_like(P), tf.multiply(P, gamma) )
         invDnom = tf.matrix_inverse(dnom)
         return V.assign(tf.matmul(invDnom, R))
 
