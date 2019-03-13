@@ -224,6 +224,8 @@ def getBestPolicyGivenStateValues(P, nS, gamma, value_function):
 
 def value_iteration(P, nS, nA, gamma=0.9, tol=1e-3):
 	"""
+	Asynchronous dynamic programming.
+	In-place value iteration. So, a state value is updated immediately, not waiting for other states to be processed.
 	Learn value function and policy by using value iteration method for a given
 	gamma and environment.
 	Assumes episodes starts at state 0
