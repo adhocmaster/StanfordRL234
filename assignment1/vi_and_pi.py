@@ -4,7 +4,6 @@ import numpy as np
 import pprint, math
 import gym
 import time
-import sys
 from lake_envs import *
 
 np.set_printoptions(precision=3)
@@ -112,7 +111,7 @@ def policy_improvement(P, nS, nA, value_from_policy, policy, gamma=0.9):
 	for state in range(nS):
 		actionSpace = P[state]
 		#q_s_a[state] = {}
-		maxQ_s_a = sys.float_info.min
+		maxQ_s_a = float("-inf")
 		for action, tupleArr in actionSpace.items():
 			nextProb, nextState, r, isTerminal  = tupleArr[0]
 			#q_s_a[state][action] = r + v_s_i[nextState]
@@ -177,10 +176,57 @@ def policy_iteration(P, nS, nA, gamma=0.9, tol=10e-3):
 	############################
 	return value_function, policy
 
+def getQmax(P, state, value_function, gamma):
+	"""[summary]
+	
+	Arguments:
+		P {[type]} -- [description]
+		state {[type]} -- [description]
+		value_function {[type]} -- [description]
+		gamma {[type]} -- [description]
+	
+	Returns:
+		actionMax: int
+		Qmax: float64
+	"""
+
+
+	#nextProb, nextState, r, isTerminal  = P[state][action][0] # currently one tuple per s,a only
+	
+	actionSpace = P[state]
+
+	qmax = float("-inf")
+	actionMax = 0
+
+	for action, prArray in actionSpace.items():
+		nextProb, nextState, r, isTerminal  = prArray[0]
+
+		q = r + gamma * value_function[nextState]
+		if q > qmax:
+			actionMax = action
+			qmax = q
+	
+	return actionMax, qmax
+
+
+def getBestPolicyGivenStateValues(P, nS, gamma, value_function):
+
+	policy = np.zeros(nS, dtype=int)
+
+	for state in range(nS):
+		actionMax, qmax = getQmax(P, state, value_function, gamma)
+		value_function[state] = qmax
+		policy[state] = actionMax # calling it later may change actions.
+	
+	return policy
+
+
+
 def value_iteration(P, nS, nA, gamma=0.9, tol=1e-3):
 	"""
 	Learn value function and policy by using value iteration method for a given
 	gamma and environment.
+	Assumes episodes starts at state 0
 
 	Parameters:
 	----------
@@ -199,6 +245,34 @@ def value_iteration(P, nS, nA, gamma=0.9, tol=1e-3):
 	policy = np.zeros(nS, dtype=int)
 	############################
 	# YOUR IMPLEMENTATION HERE #
+
+	maxDiff = tol + 1
+
+	i = 0
+
+	while maxDiff > tol: # continue until maximum change in a state is less than or equal tolerance
+		print( f"value iteration {i}" )
+		i += 1
+		maxDiff = 0 # we will get tha maximum change in a state value in this variable
+		for state in range(nS):
+			actionMax, qmax = getQmax(P, state, value_function, gamma)
+			
+			# check change in value
+			diff = abs(qmax - value_function[state])
+			if diff > maxDiff:
+				maxDiff = diff
+
+			value_function[state] = qmax
+			policy[state] = actionMax 
+
+			pass
+		
+		print( f"maxDiff {maxDiff}" )
+		pass
+
+
+	# calling it later may change actions. So, we integrated it in the state loop
+	# policy = getBestPolicyGivenStateValues(P, nS, gamma, value_function)
 
 
 	############################
@@ -243,24 +317,20 @@ if __name__ == "__main__":
 	# comment/uncomment these lines to switch between deterministic/stochastic environments
 	env = gym.make("Deterministic-4x4-FrozenLake-v0")
 	# env = gym.make("Stochastic-4x4-FrozenLake-v0")
-
 	print("\n" + "-"*25 + "\nBeginning Policy Iteration\n" + "-"*25)
 
 	pp = pprint.PrettyPrinter( indent=4 )
 	#pp.pprint(env.P)
 	V_pi, p_pi = policy_iteration(env.P, env.nS, env.nA, gamma=0.9, tol=1e-3)
-	pp.pprint(V_pi)
-	pp.pprint(p_pi)
+	# pp.pprint(V_pi)
+	# pp.pprint(p_pi)
 	render_single(env, p_pi, 100)
 
-	'''
-	V_pi, p_pi = policy_iteration(env.P, env.nS, env.nA, gamma=0.9, tol=1e-3)
-	render_single(env, p_pi, 100)
 
 	print("\n" + "-"*25 + "\nBeginning Value Iteration\n" + "-"*25)
 
 	V_vi, p_vi = value_iteration(env.P, env.nS, env.nA, gamma=0.9, tol=1e-3)
 	render_single(env, p_vi, 100)
-	'''
+
 
 
