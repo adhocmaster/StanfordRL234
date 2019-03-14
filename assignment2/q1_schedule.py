@@ -30,10 +30,17 @@ class LinearSchedule(object):
 			  it is a linear interpolation from self.eps_begin to 
 			  self.eps_end as t goes from 0 to self.nsteps
 			  For t > self.nsteps self.epsilon remains constant
+        if ( self.nsteps > 0 ):
+            self.epsilon += (self.eps_end - self.epsilon) / self.nsteps
+            self.nsteps -= 1
         """
         ##############################################################
         ################ YOUR CODE HERE - 3-4 lines ################## 
-
+        
+        if t <= self.nsteps:
+            self.epsilon = self.eps_begin + (self.eps_end - self.eps_begin) * t / self.nsteps
+        else:
+            self.epsilon = self.eps_end
         pass
 
         ##############################################################
@@ -78,7 +85,12 @@ class LinearExploration(LinearSchedule):
         """
         ##############################################################
         ################ YOUR CODE HERE - 4-5 lines ##################
-
+        # without seed?
+        if np.random.choice(2, 1, p=[self.epsilon, (1 - self.epsilon )]) == 0:
+            # all random
+            return self.env.action_space.sample()
+        else:
+            return best_action
         pass
 
         ##############################################################
