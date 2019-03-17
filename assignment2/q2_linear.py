@@ -75,6 +75,7 @@ class Linear(DQN):
         Args:
             state: (tf tensor) 
                 shape = (batch_size, img height, img width, nchannels x config.state_history)
+                *** This is not a fucking batch. It's a single state of shape (img height, img width, nchannels). Both the batch_size and state history missing.
             scope: (string) scope name, that specifies if target network or not
             reuse: (bool) reuse of variables in the scope
 
@@ -108,7 +109,10 @@ class Linear(DQN):
             # weight and bias
             #w = tf.get_variable( name = 'weight', initializer=tf.zeros_initializer())
             #b = tf.get_variable( name = 'bias', initializer=tf.zeros_initializer())
-            X = self.getStateActions( state )
+            X = self.getStateActionsOfAState( state )
+
+            print( "get_q_values_op X")
+            print( X )
 
             # stateActionOut will have [batchSize * num_actions, 1] shape 
             stateActionOut = tf.layers.dense(
@@ -125,10 +129,30 @@ class Linear(DQN):
         ##############################################################
         ######################## END YOUR CODE #######################
 
+        print( "get_q_values_op stateActionOut")
+        print( stateActionOut )
         # stateActionOut will have [batchSize * num_actions, 1] shape. we convert it to  (batch_size, num_actions)
-        return stateActionOut.reshape([tf.shape(state)[0], -1])
+        return tf.reshape( stateActionOut, [1, -1] )
 
-    def getStateActions( self, states ):
+
+    def getStateActionsOfAState( self, state ):
+        
+        num_actions = self.env.action_space.n
+        oneHotActions = self.getOneHotOfActions()
+        extendedState = state[None, :]
+        flattenedXWithOneBatch = layers.flatten( extendedState )
+
+        # [ num_actions, flatsize]
+        repeatedStates = tf.tile( flattenedXWithOneBatch, [num_actions, 1] )
+
+        print( repeatedStates )
+        print( oneHotActions )
+        X = tf.concat( [repeatedStates, oneHotActions], axis = 1 )
+
+        return X
+
+
+    def getStateActionsOfABatch( self, states ):
         num_actions = self.env.action_space.n
         oneHotActions = self.getOneHotOfActions()
         flattenedStates = layers.flatten( states ) # [batchSize, stateSize]
@@ -161,7 +185,7 @@ class Linear(DQN):
     def getOneHotOfActions( self ):
         
         num_actions = self.env.action_space.n
-        return tf.one_hot( indices = self.a, depth = num_actions )
+        return tf.one_hot( indices = list( range(num_actions) ), depth = num_actions )
 
     def add_update_target_op(self, q_scope, target_q_scope):
         """
@@ -266,7 +290,8 @@ class Linear(DQN):
         # [batchSize, numActions] V is repeated on axis 1, or per row.
         targetVA = tf.tile( expandStatesVs, [1, num_actions] )
 
-        sqDifElements = tf.squared_difference( q. targetVA ) # TD(0) error squared
+        sqDifElements = tf.squared_difference( q, targetVA ) # TD(0) error squared
+
         self.loss = tf.reduce_mean( sqDifElements )
 
         pass
