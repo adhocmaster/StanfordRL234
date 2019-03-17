@@ -8,6 +8,8 @@ from q1_schedule import LinearExploration, LinearSchedule
 
 from configs.q2_linear import config
 
+import pprint
+
 
 class Linear(DQN):
     """
@@ -49,6 +51,16 @@ class Linear(DQN):
         """
         ##############################################################
         ################YOUR CODE HERE (6-15 lines) ##################
+        obShape = env.observation_space.shape
+        stateShape = [config.batch_size, obShape[0], obShape[1], obShape[2] * config.state_history ]
+        
+        self.s = tf.placeholder(tf.uint8, obShape)
+        self.a = tf.placeholder(tf.int32, shape=[config.batch_size])
+        self.r = tf.placeholder(tf.float32, shape=[config.batch_size])
+        self.sp = tf.placeholder(tf.uint8, obShape)
+        self.done_mask = tf.placeholder(tf.bool, shape=[config.batch_size])
+        self.gamma = config.gamma
+        self.alpha = 0.5
 
         pass
 
@@ -70,6 +82,9 @@ class Linear(DQN):
             out: (tf tensor) of shape = (batch_size, num_actions)
         """
         # this information might be useful
+
+        print( "get_q_values_op state")
+        print( state )
         num_actions = self.env.action_space.n
 
         ##############################################################
@@ -87,14 +102,66 @@ class Linear(DQN):
         """
         ##############################################################
         ################ YOUR CODE HERE - 2-3 lines ################## 
+
+        with tf.variable_scope(scope, reuse = reuse):
+            
+            # weight and bias
+            #w = tf.get_variable( name = 'weight', initializer=tf.zeros_initializer())
+            #b = tf.get_variable( name = 'bias', initializer=tf.zeros_initializer())
+            X = self.getStateActions( state )
+
+            # stateActionOut will have [batchSize * num_actions, 1] shape 
+            stateActionOut = tf.layers.dense(
+                                    name='fcc',
+                                    inputs=X, 
+                                    units=tf.float32,
+                                    activation=None,
+                                    use_bias=True
+                                )
+
         
         pass
 
         ##############################################################
         ######################## END YOUR CODE #######################
 
-        return out
+        # stateActionOut will have [batchSize * num_actions, 1] shape. we convert it to  (batch_size, num_actions)
+        return stateActionOut.reshape([tf.shape(state)[0], -1])
 
+    def getStateActions( self, states ):
+        num_actions = self.env.action_space.n
+        oneHotActions = self.getOneHotOfActions()
+        flattenedStates = layers.flatten( states ) # [batchSize, stateSize]
+        batchSize = tf.shape(flattenedStates)[0]
+        stateSize = tf.shape(flattenedStates)[1]
+        # now each state will be put into a new dimension so that we can tile that dimension num_actions times
+        # [batchSize, 1, stateSize]
+        expandedStates = tf.expand_dims(flattenedStates, 1)
+        # now we will get for each state, num_actions copies
+        # [batchSize, num_actions, stateSize]
+        tiledStates = tf.tile( expandedStates, [1, num_actions, 1] )
+        # [batchSize * num_actions, stateSize]
+        repeatedStates = tf.reshape( tiledStates, [-1, stateSize] )
+
+        # [batchSize * num_actions] action set is repeated for each state
+        batchActions = tf.tile( oneHotActions, [batchSize, 1])
+
+        print( states )
+        print( flattenedStates )
+        print( expandedStates )
+        print( tiledStates )
+        print( repeatedStates )
+        # [batchSize, (stateSize + onehotsize) * num_actions]
+        X = tf.concat( [repeatedStates, batchActions], axis = 1 )
+
+        return X
+        
+
+
+    def getOneHotOfActions( self ):
+        
+        num_actions = self.env.action_space.n
+        return tf.one_hot( indices = self.a, depth = num_actions )
 
     def add_update_target_op(self, q_scope, target_q_scope):
         """
@@ -131,6 +198,23 @@ class Linear(DQN):
         """
         ##############################################################
         ################### YOUR CODE HERE - 5-10 lines #############
+
+        # sourceCollection = tf.get_collection( tf.GraphKeys.GLOBAL_VARIABLES, scope = q_scope )
+         # destCollection = tf.get_collection( tf.GraphKeys.GLOBAL_VARIABLES, scope=target_q_scope )
+        sourceCollection = tf.global_variables( scope = q_scope )
+        destCollection = tf.global_variables( scope = target_q_scope )
+        ops = []
+        for i in range( len( sourceCollection ) ):
+            ops.append( tf.assign(destCollection[i], sourceCollection[i] ) )
+        '''
+        w_update = tf.assign( destCollection.)
+        self.update_target_op = 
+
+        with tf.variable_scope( q_scope ):
+            s_w = tf.get_variable
+        '''
+
+        self.update_target_op = tf.group( *ops )
         
         pass
 
@@ -144,7 +228,7 @@ class Linear(DQN):
 
         Args:
             q: (tf tensor) shape = (batch_size, num_actions)
-            target_q: (tf tensor) shape = (batch_size, num_actions)
+            target_q: (tf tensor) shape = (batch_size, num_actions) #next state batch?
         """
         # you may need this variable
         num_actions = self.env.action_space.n
@@ -171,11 +255,27 @@ class Linear(DQN):
         ##############################################################
         ##################### YOUR CODE HERE - 4-5 lines #############
 
+        # compute val
+        targetMax = tf.add( self.r, tf.multiply( tf.reduce_max( target_q, axis = 1 ), self.gamma ) )
+        
+        # shape = [batchSize]
+        targetV = tf.where( self.done_mask, self.r, targetMax )
+
+        # make each state value repeatable. [batchSize, 1]
+        expandStatesVs = tf.expand_dims( targetV, 1 )
+        # [batchSize, numActions] V is repeated on axis 1, or per row.
+        targetVA = tf.tile( expandStatesVs, [1, num_actions] )
+
+        sqDifElements = tf.squared_difference( q. targetVA ) # TD(0) error squared
+        self.loss = tf.reduce_mean( sqDifElements )
+
         pass
 
         ##############################################################
         ######################## END YOUR CODE #######################
 
+    def GradCapper( self, gradient ):
+        return tf.clip_by_norm( gradient, self.config.clip_val )
 
     def add_optimizer_op(self, scope):
         """
@@ -208,6 +308,20 @@ class Linear(DQN):
         ##############################################################
         #################### YOUR CODE HERE - 8-12 lines #############
 
+        with tf.variable_scope( scope ):
+            optimizer = tf.train.AdamOptimizer( learning_rate=0.001 )
+
+            gvs = optimizer.compute_gradients(self.loss)
+
+            if self.config.grad_clip:
+                gvs = [ ( self.GradCapper( gv[0] ), gv[1] ) for gv in gvs ]
+            
+            gradients, variables = zip( *gvs ) # fucking unzip
+
+            self.grad_norm = tf.global_norm( gradients )
+
+            self.train_op = optimizer.apply_gradients( gvs )
+
         pass
         
         ##############################################################
@@ -217,6 +331,11 @@ class Linear(DQN):
 
 if __name__ == '__main__':
     env = EnvTest((5, 5, 1))
+
+    pp = pprint.PrettyPrinter( width=4 )
+
+    pp.pprint( config )
+    
 
     # exploration strategy
     exp_schedule = LinearExploration(env, config.eps_begin, 
