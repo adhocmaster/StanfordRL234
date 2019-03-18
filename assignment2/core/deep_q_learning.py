@@ -170,6 +170,14 @@ class DQN(QN):
             action: (int)
             action_values: (np array) q values for all actions
         """
+        """
+        print('get_best_action for state' )
+        print(state)
+        print('and self.q is ')
+        print( self.q )
+        print('and self.s is ')
+        print( self.s )
+        """
         action_values = self.sess.run(self.q, feed_dict={self.s: [state]})[0]
         return np.argmax(action_values), action_values
 

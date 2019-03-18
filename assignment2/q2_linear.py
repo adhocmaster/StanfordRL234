@@ -52,13 +52,19 @@ class Linear(DQN):
         ##############################################################
         ################YOUR CODE HERE (6-15 lines) ##################
         obShape = env.observation_space.shape
-        stateShape = [config.batch_size, obShape[0], obShape[1], obShape[2] * config.state_history ]
+        batch_size = self.config.batch_size
+        print( f"self batch size {batch_size}")
+        batch_size = None
+        print( f"fix self batch size {batch_size}")
+
+        stateShape = [batch_size, obShape[0], obShape[1], obShape[2] * config.state_history ]
         
-        self.s = tf.placeholder(tf.uint8, obShape)
-        self.a = tf.placeholder(tf.int32, shape=[config.batch_size])
-        self.r = tf.placeholder(tf.float32, shape=[config.batch_size])
-        self.sp = tf.placeholder(tf.uint8, obShape)
-        self.done_mask = tf.placeholder(tf.bool, shape=[config.batch_size])
+        self.s = tf.placeholder(tf.uint8, stateShape)
+        self.a = tf.placeholder(tf.int32, shape=[batch_size])
+        self.r = tf.placeholder(tf.float32, shape=[batch_size])
+        self.sp = tf.placeholder(tf.uint8, stateShape)
+        self.done_mask = tf.placeholder(tf.bool, shape=[batch_size])
+        self.lr = tf.constant(0.001)
         self.gamma = config.gamma
         self.alpha = 0.5
 
@@ -109,7 +115,7 @@ class Linear(DQN):
             # weight and bias
             #w = tf.get_variable( name = 'weight', initializer=tf.zeros_initializer())
             #b = tf.get_variable( name = 'bias', initializer=tf.zeros_initializer())
-            X = self.getStateActionsOfAState( state )
+            X = self.getStateActionsOfABatch( state )
 
             print( "get_q_values_op X")
             print( X )
@@ -132,7 +138,7 @@ class Linear(DQN):
         print( "get_q_values_op stateActionOut")
         print( stateActionOut )
         # stateActionOut will have [batchSize * num_actions, 1] shape. we convert it to  (batch_size, num_actions)
-        return tf.reshape( stateActionOut, [1, -1] )
+        return tf.reshape( stateActionOut, [tf.shape(state)[0], -1] )
 
 
     def getStateActionsOfAState( self, state ):
@@ -145,6 +151,7 @@ class Linear(DQN):
         # [ num_actions, flatsize]
         repeatedStates = tf.tile( flattenedXWithOneBatch, [num_actions, 1] )
 
+        print( 'getStateActionsOfAState' )
         print( repeatedStates )
         print( oneHotActions )
         X = tf.concat( [repeatedStates, oneHotActions], axis = 1 )
@@ -157,7 +164,8 @@ class Linear(DQN):
         oneHotActions = self.getOneHotOfActions()
         flattenedStates = layers.flatten( states ) # [batchSize, stateSize]
         batchSize = tf.shape(flattenedStates)[0]
-        stateSize = tf.shape(flattenedStates)[1]
+        #stateSize = tf.shape(flattenedStates)[1]
+        stateSize = flattenedStates.shape[1]
         # now each state will be put into a new dimension so that we can tile that dimension num_actions times
         # [batchSize, 1, stateSize]
         expandedStates = tf.expand_dims(flattenedStates, 1)
@@ -170,6 +178,9 @@ class Linear(DQN):
         # [batchSize * num_actions] action set is repeated for each state
         batchActions = tf.tile( oneHotActions, [batchSize, 1])
 
+        print( 'getStateActionsOfABatch' )
+        print( f'batchSize {batchSize}' )
+        print( f'stateSize {stateSize}' )
         print( states )
         print( flattenedStates )
         print( expandedStates )
@@ -334,7 +345,7 @@ class Linear(DQN):
         #################### YOUR CODE HERE - 8-12 lines #############
 
         with tf.variable_scope( scope ):
-            optimizer = tf.train.AdamOptimizer( learning_rate=0.001 )
+            optimizer = tf.train.AdamOptimizer( learning_rate=self.lr )
 
             gvs = optimizer.compute_gradients(self.loss)
 
