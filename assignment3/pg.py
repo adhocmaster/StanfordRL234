@@ -54,7 +54,27 @@ def build_mlp(
   """
   #######################################################
   #########   YOUR CODE HERE - 7-20 lines.   ############
-  return # TODO
+
+  with tf.variable_scope( scope ):
+
+    h = mlp_input
+    for i in range(n_layers - 1):
+
+      h = tf.nn.relu( tf.layers.dense(
+        input=h,
+        units=size
+      ) )
+    
+    # final layer
+
+    final = tf.layers.dense(
+      input=h,
+      units=output_size,
+      activation=output_activation
+    )
+
+
+  return final
   #######################################################
   #########          END YOUR CODE.          ############
 
@@ -111,14 +131,14 @@ class PG(object):
     """
     #######################################################
     #########   YOUR CODE HERE - 8-12 lines.   ############
-    self.observation_placeholder = # TODO
+    self.observation_placeholder = tf.placeholder(dtype=tf.float32, shape=[self.observation_dim], name='observation')
     if self.discrete:
-      self.action_placeholder = # TODO
+      self.action_placeholder = tf.placeholder(dtype=tf.float32, shape=[], name='action')
     else:
-      self.action_placeholder = # TODO
+      self.action_placeholder = tf.placeholder(dtype=tf.float32, shape=[self.action_dim], name='action')
 
     # Define a placeholder for advantages
-    self.advantage_placeholder = # TODO
+    self.advantage_placeholder = tf.placeholder(dtype=tf.float32, shape=[])
     #######################################################
     #########          END YOUR CODE.          ############
 
